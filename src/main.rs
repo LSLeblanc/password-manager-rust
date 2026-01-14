@@ -10,18 +10,26 @@ use std::fs;
 use std::io::{self, Write};
 
 #[derive(Serialize, Deserialize, Clone)]
+/// Structure représentant une entrée de mot de passe pour un service donné
 struct PasswordEntry {
+    /// Nom du service (e.g., "gmail")
     service: String,
+    /// Nom d'utilisateur associé au service
     username: String,
+    /// Mot de passe associé au service
     password: String,
 }
 
+/// Structure principale pour gérer les mots de passe
 struct PasswordStore {
+    /// Liste des entrées de mots de passe
     passwords: Vec<PasswordEntry>,
+    /// Chemin du fichier de stockage
     file: String,
 }
 
 impl PasswordStore {
+    /// Crée un nouveau magasin de mots de passe
     fn new(filepath: &str) -> Self {
         PasswordStore {
             passwords: Vec::new(),
@@ -29,6 +37,7 @@ impl PasswordStore {
         }
     }
 
+    /// Ajoute une nouvelle entrée de mot de passe
     fn add_password(&mut self, service: &str, username: &str, password: &str) {
         self.passwords.push(PasswordEntry {
             service: service.to_string(),
@@ -37,6 +46,7 @@ impl PasswordStore {
         })
     }
 
+    /// Liste tous les services et noms d'utilisateur stockés
     fn list_passwords(&self) {
         for entry in self.passwords.iter() {
             println!(
@@ -46,10 +56,12 @@ impl PasswordStore {
         }
     }
 
+    /// Récupère une entrée de mot de passe pour un service donné
     fn get_password(&mut self, service: &str) -> Option<&PasswordEntry> {
         self.passwords.iter().find(|e| e.service == service)
     }
 
+    /// Sauvegarde les mots de passe chiffrés dans un fichier
     fn save_to_file(&self, master_password: &str) -> io::Result<()> {
         let json = serde_json::to_string(&self.passwords)?;
         let encrypted = encrypt_data(json.as_bytes(), master_password);
@@ -57,6 +69,7 @@ impl PasswordStore {
         Ok(())
     }
 
+    /// Charge les mots de passe chiffrés depuis un fichier
     fn load_from_file(file_path: &str, master_password: &str) -> io::Result<Self> {
         let encrypted_data = fs::read(file_path)?;
         let decrypted = decrypt_data(&encrypted_data, master_password)
@@ -71,6 +84,7 @@ impl PasswordStore {
     }
 }
 
+/// Fonction pour obtenir une entrée utilisateur
 fn get_input(prompt: &str) -> String {
     println!("{}", prompt);
     std::io::stdout().flush().unwrap();
@@ -79,6 +93,7 @@ fn get_input(prompt: &str) -> String {
     input.trim().to_string()
 }
 
+/// Dérive une clé de chiffrement à partir du mot de passe maître
 fn derive_key(password: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(password.as_bytes());
@@ -86,6 +101,7 @@ fn derive_key(password: &str) -> [u8; 32] {
     result.into()
 }
 
+/// Chiffre les données avec AES-256-GCM
 fn encrypt_data(data: &[u8], password: &str) -> Vec<u8> {
     let key = derive_key(password);
     let cipher = Aes256Gcm::new(&key.into());
@@ -99,6 +115,7 @@ fn encrypt_data(data: &[u8], password: &str) -> Vec<u8> {
     result
 }
 
+/// Déchiffre les données avec AES-256-GCM
 fn decrypt_data(encrypted_data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     if encrypted_data.len() < 12 {
         return Err("Invalid encrypted data".to_string());
@@ -114,6 +131,7 @@ fn decrypt_data(encrypted_data: &[u8], password: &str) -> Result<Vec<u8>, String
         .map_err(|_| "Decryption failed - wrong password?".to_string())
 }
 
+/// Génère un mot de passe aléatoire
 fn generate_random_password(password_length: usize) -> String {
     let password: String = rand::rng()
         .sample_iter(&Alphanumeric)
@@ -126,10 +144,13 @@ fn generate_random_password(password_length: usize) -> String {
 fn main() {
     println!("Gestionnaire de mots de passe\n");
 
+    // Chargement ou création du magasin de mots de passe
     let file_path = "passwords.enc";
     let master_password = get_input("Entrez le mot de passe maître : ");
     let mut store = match PasswordStore::load_from_file(file_path, &master_password) {
+        // Si le fichier existe et le mot de passe est correct, charger le magasin
         Ok(store) => store,
+        // Si le fichier n'existe pas ou le mot de passe est incorrect, créer un nouveau magasin
         Err(_) => {
             println!(
                 "Aucun fichier de mots de passe trouvé ou mot de passe incorrect. Création d'un nouveau magasin."
@@ -138,6 +159,7 @@ fn main() {
         }
     };
 
+    // Boucle principale du menu
     loop {
         let choice = get_input(
             "============== Menu ==============\n1. Ajouter un mot de passe\n2. Afficher tous les mots de passe\n3. Mot de passe d'un service\n4. Sauvegarder et quitter\n 5. Quitter sans sauvegarder",
