@@ -2,6 +2,8 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit},
 };
+use rand::Rng;
+use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -112,6 +114,15 @@ fn decrypt_data(encrypted_data: &[u8], password: &str) -> Result<Vec<u8>, String
         .map_err(|_| "Decryption failed - wrong password?".to_string())
 }
 
+fn generate_random_password(password_length: usize) -> String {
+    let password: String = rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(password_length)
+        .map(char::from)
+        .collect();
+    password
+}
+
 fn main() {
     println!("Gestionnaire de mots de passe\n");
 
@@ -136,7 +147,17 @@ fn main() {
             "1" => {
                 let service = get_input("Entrez le nom du service : ");
                 let username = get_input("Entrez le nom d'utilisateur : ");
-                let password = get_input("Entrez le mot de passe : ");
+                let password_choice =
+                    get_input("Voulez-vous générer un mot de passe aléatoire ? (oui/non) : ");
+                let password = if password_choice.to_lowercase() == "oui" {
+                    let password_length = get_input("Entrez la taille de mot de passe voulue : ")
+                        .trim()
+                        .parse::<usize>()
+                        .unwrap_or(12);
+                    generate_random_password(password_length)
+                } else {
+                    get_input("Entrez le mot de passe : ")
+                };
                 store.add_password(&service, &username, &password);
                 println!("Mot de passe ajouté avec succès !");
             }
