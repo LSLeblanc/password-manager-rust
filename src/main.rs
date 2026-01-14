@@ -1,3 +1,44 @@
+struct PasswordStore {
+    passwords: Vec<PasswordEntry>,
+    file: String,
+}
+
+impl PasswordStore {
+    fn new(filepath: &str) -> Self {
+        PasswordStore {
+            passwords: Vec::new(),
+            file: filepath.to_string(),
+        }
+    }
+
+    fn add_password(&mut self, url: &str, username: &str, password: &str) {
+        self.passwords.push(PasswordEntry {
+            url: url.to_string(),
+            username: username.to_string(),
+            password: password.to_string(),
+        })
+    }
+
+    fn list_passwords(&mut self) {
+        for entry in self.passwords.iter() {
+            println!(
+                "url : {} | username : {} | password : {}\n",
+                entry.url, entry.username, entry.password
+            )
+        }
+    }
+
+    // fn save_to_file() {}
+
+    // fn load_from_file() {}
+}
+
+struct PasswordEntry {
+    url: String,
+    username: String,
+    password: String,
+}
+
 fn main() {
     println!("Gestionnaire de mots de passe\n");
     loop {
