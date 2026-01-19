@@ -3,7 +3,6 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
 };
 use rand::Rng;
-use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -131,25 +130,47 @@ fn decrypt_data(encrypted_data: &[u8], password: &str) -> Result<Vec<u8>, String
         .map_err(|_| "Decryption failed - wrong password?".to_string())
 }
 
-/// Génère un mot de passe aléatoire
+/// Génère un mot de passe aléatoire avec contraintes (min 1 minuscule, 1 majuscule, 1 chiffre, 1 symbole si demandé)
+const LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+const UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const DIGITS: &[u8] = b"0123456789";
+const SYMBOLS: &[u8] = b"!@#$%^&*()-_=+[]{};:,.<>?/|~";
+const CHARSET_ALNUM: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const CHARSET_ALNUM_SYM: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?/|~";
 
 fn generate_random_password(password_length: usize, with_symbols: bool) -> String {
     let mut rng = rand::rng();
+    let min_required = if with_symbols { 4 } else { 3 };
+    let target_len = password_length.max(min_required);
+
+    let mut pwd: Vec<u8> = Vec::with_capacity(target_len);
+
+    // Ajouter au moins un caractère de chaque catégorie requise
+    pwd.push(LOWER[rng.random_range(0..LOWER.len())]);
+    pwd.push(UPPER[rng.random_range(0..UPPER.len())]);
+    pwd.push(DIGITS[rng.random_range(0..DIGITS.len())]);
     if with_symbols {
-        (0..password_length)
-            .map(|_| {
-                let idx = rng.random_range(0..CHARSET_ALNUM_SYM.len());
-                CHARSET_ALNUM_SYM[idx] as char
-            })
-            .collect()
-    } else {
-        rng.sample_iter(&Alphanumeric)
-            .take(password_length)
-            .map(char::from)
-            .collect()
+        pwd.push(SYMBOLS[rng.random_range(0..SYMBOLS.len())]);
     }
+
+    // Compléter avec l'ensemble autorisé
+    let allowed = if with_symbols {
+        CHARSET_ALNUM_SYM
+    } else {
+        CHARSET_ALNUM
+    };
+    while pwd.len() < target_len {
+        pwd.push(allowed[rng.random_range(0..allowed.len())]);
+    }
+
+    // Mélanger (Fisher-Yates)
+    for i in (1..pwd.len()).rev() {
+        let j = rng.random_range(0..=i);
+        pwd.swap(i, j);
+    }
+
+    String::from_utf8(pwd).expect("charset should be valid ASCII")
 }
 
 fn main() {
