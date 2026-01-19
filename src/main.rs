@@ -132,13 +132,24 @@ fn decrypt_data(encrypted_data: &[u8], password: &str) -> Result<Vec<u8>, String
 }
 
 /// Génère un mot de passe aléatoire
-fn generate_random_password(password_length: usize) -> String {
-    let password: String = rand::rng()
-        .sample_iter(&Alphanumeric)
-        .take(password_length)
-        .map(char::from)
-        .collect();
-    password
+const CHARSET_ALNUM_SYM: &[u8] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?/|~";
+
+fn generate_random_password(password_length: usize, with_symbols: bool) -> String {
+    let mut rng = rand::rng();
+    if with_symbols {
+        (0..password_length)
+            .map(|_| {
+                let idx = rng.random_range(0..CHARSET_ALNUM_SYM.len());
+                CHARSET_ALNUM_SYM[idx] as char
+            })
+            .collect()
+    } else {
+        rng.sample_iter(&Alphanumeric)
+            .take(password_length)
+            .map(char::from)
+            .collect()
+    }
 }
 
 fn main() {
@@ -176,7 +187,12 @@ fn main() {
                         .trim()
                         .parse::<usize>()
                         .unwrap_or(12);
-                    generate_random_password(password_length)
+                    let include_symbols = get_input("Inclure des symboles ? (oui/non) : ")
+                        .to_lowercase()
+                        .trim()
+                        .to_string();
+                    let with_symbols = include_symbols == "oui" || include_symbols == "o";
+                    generate_random_password(password_length, with_symbols)
                 } else {
                     get_input("Entrez le mot de passe : ")
                 };
