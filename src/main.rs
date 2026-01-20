@@ -214,6 +214,22 @@ fn main() {
         match choice.trim() {
             "1" => {
                 let service = get_input("Entrez le nom du service : ");
+
+                // Vérifier l'existence et proposer le remplacement
+                let exists = store.passwords.iter().any(|e| e.service == service);
+                if exists {
+                    let confirm = get_input(
+                        "Ce service possède déjà un mot de passe. Le remplacer ? (oui/non) : ",
+                    )
+                    .to_lowercase();
+                    if confirm != "oui" && confirm != "o" {
+                        println!("Opération annulée.");
+                        continue; // revenir au menu principal sans quitter
+                    }
+                    // Supprimer toutes les entrées existantes pour garantir l'unicité
+                    store.delete_by_service(&service);
+                }
+
                 let username = get_input("Entrez le nom d'utilisateur : ");
                 let password_choice =
                     get_input("Voulez-vous générer un mot de passe aléatoire ? (oui/non) : ");
@@ -232,7 +248,7 @@ fn main() {
                     get_password_hidden("Entrez le mot de passe : ")
                 };
                 store.add_password(&service, &username, &password);
-                println!("Mot de passe ajouté avec succès !");
+                println!("Mot de passe enregistré avec succès !");
             }
             "2" => {
                 store.list_passwords();
