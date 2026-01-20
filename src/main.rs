@@ -2,6 +2,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit},
 };
+use colored::Colorize;
 use rand::Rng;
 use rpassword::prompt_password;
 use serde::{Deserialize, Serialize};
@@ -56,11 +57,48 @@ impl PasswordStore {
 
     /// Liste tous les services et noms d'utilisateur stockés
     fn list_passwords(&self) {
-        for entry in self.passwords.iter() {
+        if self.passwords.is_empty() {
+            print_info("Aucune entrée enregistrée.");
+            return;
+        }
+
+        // Calcul des largeurs de colonnes
+        let service_w = self
+            .passwords
+            .iter()
+            .map(|e| e.service.len())
+            .max()
+            .unwrap_or(7)
+            .max("Service".len());
+        let user_w = self
+            .passwords
+            .iter()
+            .map(|e| e.username.len())
+            .max()
+            .unwrap_or(9)
+            .max("Utilisateur".len());
+
+        // En-tête
+        println!(
+            "{}  {:service_w$}  {:user_w$}",
+            "#".bright_cyan().bold(),
+            "Service".bold(),
+            "Utilisateur".bold(),
+            service_w = service_w,
+            user_w = user_w
+        );
+        println!("{}", "-".repeat(service_w + user_w + 5).bright_black());
+
+        // Lignes
+        for (i, e) in self.passwords.iter().enumerate() {
             println!(
-                "service: {} | username: {}\n",
-                entry.service, entry.username
-            )
+                "{}  {:service_w$}  {:user_w$}",
+                format!("{:>2}:", i + 1).bright_black(),
+                e.service,
+                e.username,
+                service_w = service_w,
+                user_w = user_w
+            );
         }
     }
 
@@ -92,9 +130,10 @@ impl PasswordStore {
     }
 }
 
-/// Fonction pour obtenir une entrée utilisateur
+/// Fonction pour obtenir une entrée utilisateur (affiche le prompt stylé)
 fn get_input(prompt: &str) -> String {
-    println!("{}", prompt);
+    println!("{} {}", "?".bright_cyan().bold(), prompt.bold());
+    print!("{} ", "›".bright_cyan());
     std::io::stdout().flush().unwrap();
     let mut input = String::new();
     std::io::stdin().read_line(&mut input).expect("Erreur");
@@ -103,7 +142,65 @@ fn get_input(prompt: &str) -> String {
 
 /// Lecture d'un mot de passe sans affichage (entrée cachée)
 fn get_password_hidden(prompt: &str) -> String {
-    prompt_password(prompt).expect("Erreur lors de la lecture du mot de passe")
+    println!("{} {}", "?".bright_cyan().bold(), prompt.bold());
+    prompt_password("› ").expect("Erreur lors de la lecture du mot de passe")
+}
+
+fn print_title(title: &str) {
+    let bar = "═".repeat(title.len() + 2);
+    println!("\n{}", format!("╔{}╗", bar).bright_cyan());
+    println!("{}", format!("║ {} {}", title.bold(), "║").bright_cyan());
+    println!("{}\n", format!("╚{}╝", bar).bright_cyan());
+}
+
+fn print_section(title: &str) {
+    println!("\n{} {}", "›".bright_cyan(), title.bold());
+}
+
+fn print_success(msg: &str) {
+    println!("{} {}", "✔".green().bold(), msg);
+}
+
+fn print_error(msg: &str) {
+    println!("{} {}", "✖".red().bold(), msg.red());
+}
+
+fn print_info(msg: &str) {
+    println!("{} {}", "ℹ".bright_blue().bold(), msg);
+}
+
+fn print_menu() {
+    print_title("Gestionnaire de mots de passe");
+    println!(
+        "{}   {} Ajouter un mot de passe\n",
+        "1".bold(),
+        "•".bright_cyan()
+    );
+    println!(
+        "{}   {} Afficher tous les mots de passe\n",
+        "2".bold(),
+        "•".bright_cyan()
+    );
+    println!(
+        "{}   {} Mot de passe d'un service\n",
+        "3".bold(),
+        "•".bright_cyan()
+    );
+    println!(
+        "{}   {} Supprimer par service\n",
+        "4".bold(),
+        "•".bright_cyan()
+    );
+    println!(
+        "{}   {} Sauvegarder et quitter\n",
+        "5".bold(),
+        "•".bright_cyan()
+    );
+    println!(
+        "{}   {} Quitter sans sauvegarder\n",
+        "6".bold(),
+        "•".bright_cyan()
+    );
 }
 
 /// Dérive une clé de chiffrement à partir du mot de passe maître
@@ -188,7 +285,7 @@ fn generate_random_password(password_length: usize, with_symbols: bool) -> Strin
 }
 
 fn main() {
-    println!("Gestionnaire de mots de passe\n");
+    print_title("Gestionnaire de mots de passe");
 
     // Chargement ou création du magasin de mots de passe
     let file_path = "passwords.enc";
@@ -198,8 +295,8 @@ fn main() {
         Ok(store) => store,
         // Si le fichier n'existe pas ou le mot de passe est incorrect, créer un nouveau magasin
         Err(_) => {
-            println!(
-                "Aucun fichier de mots de passe trouvé ou mot de passe incorrect. Création d'un nouveau magasin."
+            print_info(
+                "Aucun fichier de mots de passe trouvé ou mot de passe incorrect. Création d'un nouveau magasin.",
             );
             PasswordStore::new(file_path)
         }
@@ -207,9 +304,8 @@ fn main() {
 
     // Boucle principale du menu
     loop {
-        let choice = get_input(
-            "============== Menu ==============\n1. Ajouter un mot de passe\n2. Afficher tous les mots de passe\n3. Mot de passe d'un service\n4. Supprimer par service\n5. Sauvegarder et quitter\n6. Quitter sans sauvegarder",
-        );
+        print_menu();
+        let choice = get_input("Votre choix (1-6)");
 
         match choice.trim() {
             "1" => {
@@ -248,22 +344,23 @@ fn main() {
                     get_password_hidden("Entrez le mot de passe : ")
                 };
                 store.add_password(&service, &username, &password);
-                println!("Mot de passe enregistré avec succès !");
+                print_success("Mot de passe enregistré avec succès !");
             }
             "2" => {
+                print_section("Entrées enregistrées");
                 store.list_passwords();
             }
             "3" => {
                 let service = get_input("Entrez le nom du service : ");
                 match store.get_password(&service) {
                     Some(entry) => {
-                        println!(
-                            "Service: {}\nUsername: {}\nPassword: {}",
-                            entry.service, entry.username, entry.password
-                        );
+                        print_section("Détails du service");
+                        println!("{} {}", "Service:".bold(), entry.service);
+                        println!("{} {}", "Utilisateur:".bold(), entry.username);
+                        println!("{} {}", "Mot de passe:".bold(), entry.password);
                     }
                     None => {
-                        println!("Aucun mot de passe trouvé pour ce service.");
+                        print_error("Aucun mot de passe trouvé pour ce service.");
                     }
                 }
             }
@@ -271,29 +368,29 @@ fn main() {
                 let service = get_input("Entrez le nom du service à supprimer : ");
                 let removed = store.delete_by_service(&service);
                 if removed > 0 {
-                    println!(
+                    print_success(&format!(
                         "{} entrées supprimées pour le service '{}'",
                         removed, service
-                    );
+                    ));
                 } else {
-                    println!("Aucune entrée trouvée pour ce service.");
+                    print_error("Aucune entrée trouvée pour ce service.");
                 }
             }
             "5" => match store.save_to_file(&master_password) {
                 Ok(_) => {
-                    println!("Mots de passe sauvegardés avec succès. Au revoir!");
+                    print_success("Mots de passe sauvegardés avec succès. Au revoir!");
                     break;
                 }
                 Err(e) => {
-                    println!("Erreur lors de la sauvegarde : {}", e);
+                    print_error(&format!("Erreur lors de la sauvegarde : {}", e));
                 }
             },
             "6" => {
-                println!("Au revoir!");
+                print_info("Au revoir!");
                 break;
             }
             _ => {
-                println!("Choix invalide, veuillez réessayer.");
+                print_error("Choix invalide, veuillez réessayer.");
             }
         }
     }
