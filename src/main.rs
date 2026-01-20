@@ -3,6 +3,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
 };
 use rand::Rng;
+use rpassword::prompt_password;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -92,6 +93,11 @@ fn get_input(prompt: &str) -> String {
     input.trim().to_string()
 }
 
+/// Lecture d'un mot de passe sans affichage (entrée cachée)
+fn get_password_hidden(prompt: &str) -> String {
+    prompt_password(prompt).expect("Erreur lors de la lecture du mot de passe")
+}
+
 /// Dérive une clé de chiffrement à partir du mot de passe maître
 fn derive_key(password: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -178,7 +184,7 @@ fn main() {
 
     // Chargement ou création du magasin de mots de passe
     let file_path = "passwords.enc";
-    let master_password = get_input("Entrez le mot de passe maître : ");
+    let master_password = get_password_hidden("Entrez le mot de passe maître : ");
     let mut store = match PasswordStore::load_from_file(file_path, &master_password) {
         // Si le fichier existe et le mot de passe est correct, charger le magasin
         Ok(store) => store,
@@ -215,7 +221,7 @@ fn main() {
                     let with_symbols = include_symbols == "oui" || include_symbols == "o";
                     generate_random_password(password_length, with_symbols)
                 } else {
-                    get_input("Entrez le mot de passe : ")
+                    get_password_hidden("Entrez le mot de passe : ")
                 };
                 store.add_password(&service, &username, &password);
                 println!("Mot de passe ajouté avec succès !");
