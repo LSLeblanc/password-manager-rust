@@ -37,6 +37,14 @@ impl PasswordStore {
         }
     }
 
+    /// Supprime toutes les entrées correspondant à un service donné.
+    /// Retourne le nombre d'entrées supprimées.
+    fn delete_by_service(&mut self, service: &str) -> usize {
+        let before = self.passwords.len();
+        self.passwords.retain(|e| e.service != service);
+        before - self.passwords.len()
+    }
+
     /// Ajoute une nouvelle entrée de mot de passe
     fn add_password(&mut self, service: &str, username: &str, password: &str) {
         self.passwords.push(PasswordEntry {
@@ -200,7 +208,7 @@ fn main() {
     // Boucle principale du menu
     loop {
         let choice = get_input(
-            "============== Menu ==============\n1. Ajouter un mot de passe\n2. Afficher tous les mots de passe\n3. Mot de passe d'un service\n4. Sauvegarder et quitter\n 5. Quitter sans sauvegarder",
+            "============== Menu ==============\n1. Ajouter un mot de passe\n2. Afficher tous les mots de passe\n3. Mot de passe d'un service\n4. Supprimer par service\n5. Sauvegarder et quitter\n6. Quitter sans sauvegarder",
         );
 
         match choice.trim() {
@@ -243,7 +251,19 @@ fn main() {
                     }
                 }
             }
-            "4" => match store.save_to_file(&master_password) {
+            "4" => {
+                let service = get_input("Entrez le nom du service à supprimer : ");
+                let removed = store.delete_by_service(&service);
+                if removed > 0 {
+                    println!(
+                        "{} entrées supprimées pour le service '{}'",
+                        removed, service
+                    );
+                } else {
+                    println!("Aucune entrée trouvée pour ce service.");
+                }
+            }
+            "5" => match store.save_to_file(&master_password) {
                 Ok(_) => {
                     println!("Mots de passe sauvegardés avec succès. Au revoir!");
                     break;
@@ -252,7 +272,7 @@ fn main() {
                     println!("Erreur lors de la sauvegarde : {}", e);
                 }
             },
-            "5" => {
+            "6" => {
                 println!("Au revoir!");
                 break;
             }
