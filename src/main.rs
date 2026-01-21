@@ -398,9 +398,17 @@ fn main() {
                         .trim()
                         .to_string();
                     let with_symbols = include_symbols == "oui" || include_symbols == "o";
-                    generate_random_password(password_length, with_symbols)
+                    let generated = generate_random_password(password_length, with_symbols);
+                    print_info(&format!("Mot de passe généré: {}", generated));
+                    generated
                 } else {
-                    get_password_hidden("Entrez le mot de passe : ")
+                    let p1 = get_password_hidden("Entrez le mot de passe : ");
+                    let p2 = get_password_hidden("Confirmez le mot de passe : ");
+                    if p1 != p2 {
+                        print_error("Les mots de passe ne correspondent pas. Opération annulée.");
+                        continue;
+                    }
+                    p1
                 };
                 store.add_password(&service, &username, &password);
                 print_success("Mot de passe enregistré avec succès !");
