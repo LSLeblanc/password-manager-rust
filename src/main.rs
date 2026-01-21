@@ -2,13 +2,16 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit},
 };
+use arboard::Clipboard;
 use colored::Colorize;
+use once_cell::sync::Lazy;
 use rand::Rng;
 use rpassword::prompt_password;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{self, Write};
+use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone)]
 /// Structure représentant une entrée de mot de passe pour un service donné
@@ -167,6 +170,22 @@ fn print_error(msg: &str) {
 
 fn print_info(msg: &str) {
     println!("{} {}", "ℹ".bright_blue().bold(), msg);
+}
+
+static CLIPBOARD: Lazy<Mutex<Clipboard>> = Lazy::new(|| {
+    // Create once and keep alive for the whole program lifetime
+    Mutex::new(Clipboard::new().expect("Impossible d'initialiser le presse-papiers"))
+});
+
+/// Copie un texte dans le presse-papiers du système
+fn copy_to_clipboard(text: &str) -> Result<(), String> {
+    let mut guard = CLIPBOARD
+        .lock()
+        .map_err(|_| "Erreur interne: mutex presse-papiers".to_string())?;
+    guard
+        .set_text(text.to_string())
+        .map_err(|e| format!("Erreur presse-papiers: {}", e))?;
+    Ok(())
 }
 
 fn print_menu() {
@@ -349,6 +368,31 @@ fn main() {
             "2" => {
                 print_section("Entrées enregistrées");
                 store.list_passwords();
+
+                // Si des entrées existent, proposer la copie dans le presse-papiers
+                if !store.passwords.is_empty() {
+                    let selection = get_input(
+                        "Entrez le numéro du mot de passe à copier (Entrée pour revenir) : ",
+                    );
+                    let sel = selection.trim();
+                    if !sel.is_empty() {
+                        match sel.parse::<usize>() {
+                            Ok(n) if n >= 1 && n <= store.passwords.len() => {
+                                let pwd = &store.passwords[n - 1].password;
+                                match copy_to_clipboard(pwd) {
+                                    Ok(_) => {
+                                        print_success("Mot de passe copié dans le presse-papiers.")
+                                    }
+                                    Err(e) => print_error(&format!(
+                                        "Impossible de copier dans le presse-papiers: {}",
+                                        e
+                                    )),
+                                }
+                            }
+                            _ => print_error("Sélection invalide."),
+                        }
+                    }
+                }
             }
             "3" => {
                 let service = get_input("Entrez le nom du service : ");
@@ -358,6 +402,23 @@ fn main() {
                         println!("{} {}", "Service:".bold(), entry.service);
                         println!("{} {}", "Utilisateur:".bold(), entry.username);
                         println!("{} {}", "Mot de passe:".bold(), entry.password);
+
+                        // Proposer la copie dans le presse-papiers
+                        let copy_choice = get_input(
+                            "Copier le mot de passe dans le presse-papiers ? (oui/non) : ",
+                        )
+                        .to_lowercase();
+                        if copy_choice == "oui" || copy_choice == "o" {
+                            match copy_to_clipboard(&entry.password) {
+                                Ok(_) => {
+                                    print_success("Mot de passe copié dans le presse-papiers.")
+                                }
+                                Err(e) => print_error(&format!(
+                                    "Impossible de copier dans le presse-papiers: {}",
+                                    e
+                                )),
+                            }
+                        }
                     }
                     None => {
                         print_error("Aucun mot de passe trouvé pour ce service.");
