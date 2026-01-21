@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{self, Write};
+use std::path::Path;
 use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -222,6 +223,27 @@ fn print_menu() {
     );
 }
 
+// Dossier où sont stockés les coffres (.enc)
+const VAULT_DIR: &str = "vaults";
+
+fn ensure_vault_dir() -> io::Result<()> {
+    fs::create_dir_all(VAULT_DIR)
+}
+
+fn vault_path_for_user(username: &str) -> String {
+    // Sanitize simple: conserver alphanumérique, '_' et '-'
+    let sanitized: String = username
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    let name = if sanitized.is_empty() {
+        "default"
+    } else {
+        sanitized.as_str()
+    };
+    format!("{}/{}.enc", VAULT_DIR, name)
+}
+
 /// Dérive une clé de chiffrement à partir du mot de passe maître
 fn derive_key(password: &str) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -306,18 +328,36 @@ fn generate_random_password(password_length: usize, with_symbols: bool) -> Strin
 fn main() {
     print_title("Gestionnaire de mots de passe");
 
+    // Sélection du coffre par utilisateur et création du dossier si besoin
+    if let Err(e) = ensure_vault_dir() {
+        print_error(&format!(
+            "Impossible de préparer le dossier des coffres: {}",
+            e
+        ));
+        return;
+    }
+
+    let username = get_input("Entrez votre identifiant utilisateur : ");
+    let file_path = vault_path_for_user(&username);
+
     // Chargement ou création du magasin de mots de passe
-    let file_path = "passwords.enc";
     let master_password = get_password_hidden("Entrez le mot de passe maître : ");
-    let mut store = match PasswordStore::load_from_file(file_path, &master_password) {
+    let mut store = match PasswordStore::load_from_file(&file_path, &master_password) {
         // Si le fichier existe et le mot de passe est correct, charger le magasin
         Ok(store) => store,
         // Si le fichier n'existe pas ou le mot de passe est incorrect, créer un nouveau magasin
         Err(_) => {
-            print_info(
-                "Aucun fichier de mots de passe trouvé ou mot de passe incorrect. Création d'un nouveau magasin.",
-            );
-            PasswordStore::new(file_path)
+            if Path::new(&file_path).exists() {
+                print_error("Mot de passe incorrect. Impossible d'ouvrir le coffre existant.");
+                print_info("Vous pouvez réessayer en relançant l'application.");
+                return;
+            } else {
+                print_info(&format!(
+                    "Aucun coffre trouvé pour l'utilisateur '{}'. Création d'un nouveau coffre.",
+                    username
+                ));
+                PasswordStore::new(&file_path)
+            }
         }
     };
 
