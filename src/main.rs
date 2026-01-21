@@ -150,6 +150,7 @@ fn get_password_hidden(prompt: &str) -> String {
     prompt_password("› ").expect("Erreur lors de la lecture du mot de passe")
 }
 
+/// Affiche un titre encadré
 fn print_title(title: &str) {
     let bar = "═".repeat(title.len() + 2);
     println!("\n{}", format!("╔{}╗", bar).bright_cyan());
@@ -157,22 +158,27 @@ fn print_title(title: &str) {
     println!("{}\n", format!("╚{}╝", bar).bright_cyan());
 }
 
+/// Affiche une section avec un titre
 fn print_section(title: &str) {
     println!("\n{} {}", "›".bright_cyan(), title.bold());
 }
 
+/// Affiche un message de succès
 fn print_success(msg: &str) {
     println!("{} {}", "✔".green().bold(), msg);
 }
 
+/// Affiche un message d'erreur
 fn print_error(msg: &str) {
     println!("{} {}", "✖".red().bold(), msg.red());
 }
 
+/// Affiche un message d'information
 fn print_info(msg: &str) {
     println!("{} {}", "ℹ".bright_blue().bold(), msg);
 }
 
+/// Presse-papiers global, protégé par un mutex
 static CLIPBOARD: Lazy<Mutex<Clipboard>> = Lazy::new(|| {
     // Create once and keep alive for the whole program lifetime
     Mutex::new(Clipboard::new().expect("Impossible d'initialiser le presse-papiers"))
@@ -189,6 +195,7 @@ fn copy_to_clipboard(text: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Affiche le menu principal
 fn print_menu() {
     print_title("Gestionnaire de mots de passe");
     println!(
@@ -223,13 +230,15 @@ fn print_menu() {
     );
 }
 
-// Dossier où sont stockés les coffres (.enc)
+/// Dossier où sont stockés les coffres (.enc)
 const VAULT_DIR: &str = "vaults";
 
+/// Assure que le dossier des coffres existe, le crée si nécessaire
 fn ensure_vault_dir() -> io::Result<()> {
     fs::create_dir_all(VAULT_DIR)
 }
 
+/// Génère le chemin du coffre pour un utilisateur donné en se basant sur son identifiant
 fn vault_path_for_user(username: &str) -> String {
     // Sanitize simple: conserver alphanumérique, '_' et '-'
     let sanitized: String = username
@@ -254,10 +263,10 @@ fn derive_key(password: &str) -> [u8; 32] {
 
 /// Chiffre les données avec AES-256-GCM
 fn encrypt_data(data: &[u8], password: &str) -> Vec<u8> {
-    let key = derive_key(password);
-    let cipher = Aes256Gcm::new(&key.into());
-    let nonce_bytes = rand::random::<[u8; 12]>();
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    let key = derive_key(password); // Clé de 32 octets pour AES-256, générée à partir du mot de passe
+    let cipher = Aes256Gcm::new(&key.into()); // Initialisation du cipher
+    let nonce_bytes = rand::random::<[u8; 12]>(); // Nonce aléatoire de 12 octets
+    let nonce = Nonce::from_slice(&nonce_bytes); // Création du nonce
 
     let ciphertext = cipher.encrypt(nonce, data).expect("encryption failure");
 
@@ -272,25 +281,32 @@ fn decrypt_data(encrypted_data: &[u8], password: &str) -> Result<Vec<u8>, String
         return Err("Invalid encrypted data".to_string());
     }
 
-    let key = derive_key(password);
-    let cipher = Aes256Gcm::new(&key.into());
-    let nonce = Nonce::from_slice(&encrypted_data[0..12]);
-    let ciphertext = &encrypted_data[12..];
+    let key = derive_key(password); // Clé de 32 octets pour AES-256, générée à partir du mot de passe
+    let cipher = Aes256Gcm::new(&key.into()); // Initialisation du cipher
+    let nonce = Nonce::from_slice(&encrypted_data[0..12]); // Extraction du nonce
+    let ciphertext = &encrypted_data[12..]; // Extraction du texte chiffré
 
+    // Tentative de déchiffrement, retourne une erreur si le mot de passe est incorrect
     cipher
         .decrypt(nonce, ciphertext)
         .map_err(|_| "Decryption failed - wrong password?".to_string())
 }
 
-/// Génère un mot de passe aléatoire avec contraintes (min 1 minuscule, 1 majuscule, 1 chiffre, 1 symbole si demandé)
-const LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
-const UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const DIGITS: &[u8] = b"0123456789";
-const SYMBOLS: &[u8] = b"!@#$%^&*()-_=+[]{};:,.<>?/|~";
+/// Charset des Alphanumérique + chiffres
 const CHARSET_ALNUM: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+/// Charset des Alphanumérique + chiffres + symboles
 const CHARSET_ALNUM_SYM: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{};:,.<>?/|~";
+/// Charsets des chiffres
+const DIGITS: &[u8] = b"0123456789";
+/// Charsets des minuscules
+const LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+/// Charsets des symboles
+const SYMBOLS: &[u8] = b"!@#$%^&*()-_=+[]{};:,.<>?/|~";
+/// Charsets des majuscules
+const UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+/// Génère un mot de passe aléatoire avec contraintes (min 1 minuscule, 1 majuscule, 1 chiffre, 1 symbole si demandé)
 fn generate_random_password(password_length: usize, with_symbols: bool) -> String {
     let mut rng = rand::rng();
     let min_required = if with_symbols { 4 } else { 3 };
